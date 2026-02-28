@@ -1,30 +1,60 @@
-from library import *
+from manager import *
+from database import *
+from menu import Menu
+from crypto import *
+from getpass import getpass
 
-if __name__ == '__main__':
+
+def main():
+    db_choice = input("Scegli database (sqlite/postgres): ").lower()
+    db = Database(db_choice)
+
     master_password, salt = verify_master_password()
-    key = generate_key(master_password, salt)
+
+    if not master_password:
+        return
+
+    key = Crypto.generate_key(master_password, salt)
     fernet = Fernet(key)
 
-    conn = init_db()
-
     while True:
-        print("\n--- MENU ---")
-        print("1. Aggiungi password")
-        print("2. Visualizza password")
-        print("3. Importa password da CSV")
-        print("4. Esci")
-        choice = input("Scegli un'opzione: ")
+
+        choice = Menu.menu()
 
         if choice == "1":
-            add_password(fernet, conn)
-        elif choice == "2":
-            view_passwords(fernet, conn)
-        elif choice == "3":
-            filename = input("Inserisci nome file CSV: ")
-            import_csv(fernet, conn, filename)
-        elif choice == "4":
-            break
-        else:
-            print("Opzione non valida!")
+            site = input("Sito: ")
+            username = input("Username: ")
+            password = Crypto.set_password(getpass("Password: "))
+            note = input("Note: ")
 
-    conn.close()
+            encrypted = Crypto.encrypt(password, fernet)
+            db.add(site, username, encrypted, note)
+
+            print("Password salvata.")
+
+        elif choice == "2":
+            rows = db.fetch_all()
+
+            for site, username, encrypted_password, note in rows:
+
+                if isinstance(encrypted_password, memoryview):
+                    encrypted_password = encrypted_password.tobytes()
+
+                decrypted = Crypto.decrypt(encrypted_password, fernet)
+
+                print("Sito: {} | Username: {} | Password: {} | Note: {}".format(site,username,decrypted,note))
+
+        elif choice == "3":
+            filename = input("Percorso file CSV: ")
+            db.import_csv(fernet, filename)
+
+        elif choice == "4":
+            print("Uscita.")
+            break
+
+        else:
+            print("Scelta non valida.")
+
+
+if __name__ == "__main__":
+    main()
